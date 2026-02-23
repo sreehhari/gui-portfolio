@@ -1,0 +1,318 @@
+---
+const LEETCODE_USERNAME = "sreehari9300";
+---
+
+<section id="leetcode" class="mt-2">
+  <div
+    class="bg-black/20 border border-gray-700 rounded font-mono text-sm text-gray-300 p-6"
+    role="region"
+    aria-label="LeetCode contributions calendar"
+  >
+    <h2 class="mb-4 text-sm font-bold text-gray-500">📊 leetcode activity</h2>
+
+    <!-- Stats row -->
+    <div id="lc-stats" class="flex gap-6 mb-4 text-xs text-gray-500">
+      <span>loading...</span>
+    </div>
+
+    <!-- Calendar container -->
+    <div id="lc-calendar-wrapper" class="overflow-x-auto pb-2">
+      <div id="lc-calendar" class="inline-block" role="img" aria-label="LeetCode submission heatmap">
+        <!-- Rendered by JS -->
+        <div class="text-xs text-gray-600 py-8 text-center">fetching leetcode data...</div>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="flex items-center justify-between mt-3 pt-2 border-t border-gray-700 text-xs">
+      <div class="flex items-center gap-2 text-gray-500">
+        <span>Less</span>
+        <span class="lc-cell" style="background:#161b22;"></span>
+        <span class="lc-cell" style="background:#0e4429;"></span>
+        <span class="lc-cell" style="background:#006d32;"></span>
+        <span class="lc-cell" style="background:#26a641;"></span>
+        <span class="lc-cell" style="background:#39d353;"></span>
+        <span>More</span>
+      </div>
+      <div class="text-gray-500">
+        <span class="text-gray-400">$</span> cat leetcode.log
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Tooltip -->
+<div id="lc-tooltip" class="lc-tooltip" role="tooltip"></div>
+
+<style>
+  .lc-cell {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    border-radius: 2px;
+    outline: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  .lc-tooltip {
+    position: fixed;
+    display: none;
+    padding: 6px 10px;
+    background: #1b1f23;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    color: #e6edf3;
+    font-size: 11px;
+    font-family: monospace;
+    pointer-events: none;
+    z-index: 100;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  }
+
+  .lc-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid #30363d;
+  }
+
+  #lc-calendar svg {
+    display: block;
+  }
+
+  #lc-calendar svg rect.day:hover {
+    stroke: #e6edf3;
+    stroke-width: 1.5;
+  }
+
+  #lc-calendar-wrapper {
+    scrollbar-width: thin;
+    scrollbar-color: #30363d transparent;
+  }
+
+  #lc-calendar-wrapper::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  #lc-calendar-wrapper::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  #lc-calendar-wrapper::-webkit-scrollbar-thumb {
+    background: #30363d;
+    border-radius: 4px;
+  }
+</style>
+
+<script define:vars={{ LEETCODE_USERNAME }}>
+  const API_BASE = "https://alfa-leetcode-api.onrender.com";
+  const CELL_SIZE = 11;
+  const CELL_GAP = 3;
+  const TOTAL_SIZE = CELL_SIZE + CELL_GAP;
+  const WEEKS = 53;
+
+  const COLORS = ["#161b22", "#0e4429", "#006d32", "#26a641", "#39d353"];
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const DAYS = ["", "Mon", "", "Wed", "", "Fri", ""];
+
+  function getColor(count) {
+    if (count === 0) return COLORS[0];
+    if (count <= 2) return COLORS[1];
+    if (count <= 5) return COLORS[2];
+    if (count <= 9) return COLORS[3];
+    return COLORS[4];
+  }
+
+  function formatDate(date) {
+    const months = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"
+    ];
+    return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+  }
+
+  async function fetchCalendar() {
+    try {
+      const res = await fetch(`${API_BASE}/${LEETCODE_USERNAME}/calendar`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      console.error("Failed to fetch LeetCode calendar:", err);
+      return null;
+    }
+  }
+
+  // Convert API timestamps (UTC) to YYYY-MM-DD date strings for reliable matching
+  function normalizeSubmissionMap(submissionMap) {
+    const normalized = {};
+    for (const [ts, count] of Object.entries(submissionMap)) {
+      const date = new Date(Number(ts) * 1000);
+      const key = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+      normalized[key] = (normalized[key] || 0) + Number(count);
+    }
+    return normalized;
+  }
+
+  function toDateKey(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
+
+  function buildCalendarGrid(normalizedMap) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Find the start: go back 52 weeks from the current week's Sunday
+    const dayOfWeek = today.getDay(); // 0=Sun
+    const startDate = new Date(today);
+    startDate.setDate(startDate.getDate() - (WEEKS - 1) * 7 - dayOfWeek);
+
+    const grid = []; // grid[week][day]
+    const current = new Date(startDate);
+
+    for (let w = 0; w < WEEKS; w++) {
+      const week = [];
+      for (let d = 0; d < 7; d++) {
+        const key = toDateKey(current);
+        const count = normalizedMap[key] || 0;
+        const isFuture = current > today;
+        week.push({
+          date: new Date(current),
+          count,
+          isFuture,
+        });
+        current.setDate(current.getDate() + 1);
+      }
+      grid.push(week);
+    }
+
+    return grid;
+  }
+
+  function renderCalendar(grid) {
+    const LEFT_PAD = 32;
+    const TOP_PAD = 18;
+    const width = LEFT_PAD + WEEKS * TOTAL_SIZE;
+    const height = TOP_PAD + 7 * TOTAL_SIZE + 4;
+
+    let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
+
+    // Day labels
+    for (let d = 0; d < 7; d++) {
+      if (DAYS[d]) {
+        const y = TOP_PAD + d * TOTAL_SIZE + CELL_SIZE - 1;
+        svg += `<text x="0" y="${y}" fill="#484f58" font-size="10" font-family="monospace">${DAYS[d]}</text>`;
+      }
+    }
+
+    // Month labels (with minimum gap to prevent overlap)
+    const MIN_LABEL_GAP = 30;
+    let lastMonth = -1;
+    let lastLabelX = -MIN_LABEL_GAP;
+    for (let w = 0; w < grid.length; w++) {
+      const firstDayOfWeek = grid[w][0];
+      const month = firstDayOfWeek.date.getMonth();
+      const x = LEFT_PAD + w * TOTAL_SIZE;
+      if (month !== lastMonth && (x - lastLabelX) >= MIN_LABEL_GAP) {
+        lastMonth = month;
+        lastLabelX = x;
+        svg += `<text x="${x}" y="10" fill="#484f58" font-size="10" font-family="monospace">${MONTHS[month]}</text>`;
+      } else if (month !== lastMonth) {
+        lastMonth = month;
+      }
+    }
+
+    // Cells
+    for (let w = 0; w < grid.length; w++) {
+      for (let d = 0; d < 7; d++) {
+        const cell = grid[w][d];
+        if (cell.isFuture) continue;
+
+        const x = LEFT_PAD + w * TOTAL_SIZE;
+        const y = TOP_PAD + d * TOTAL_SIZE;
+        const color = getColor(cell.count);
+        const dateStr = formatDate(cell.date);
+        const label = cell.count === 0
+          ? `No submissions on ${dateStr}`
+          : `${cell.count} submission${cell.count !== 1 ? 's' : ''} on ${dateStr}`;
+
+        svg += `<rect class="day" x="${x}" y="${y}" width="${CELL_SIZE}" height="${CELL_SIZE}" rx="2" ry="2" fill="${color}" data-tip="${label}" />`;
+      }
+    }
+
+    svg += `</svg>`;
+    return svg;
+  }
+
+  function setupTooltip() {
+    const tooltip = document.getElementById("lc-tooltip");
+    const calendar = document.getElementById("lc-calendar");
+    if (!tooltip || !calendar) return;
+
+    calendar.addEventListener("mouseover", (e) => {
+      const rect = e.target.closest("rect.day");
+      if (!rect) return;
+
+      const tip = rect.getAttribute("data-tip");
+      if (!tip) return;
+
+      tooltip.textContent = tip;
+      tooltip.style.display = "block";
+
+      const box = rect.getBoundingClientRect();
+      tooltip.style.left = `${box.left + box.width / 2 - tooltip.offsetWidth / 2}px`;
+      tooltip.style.top = `${box.top - tooltip.offsetHeight - 8}px`;
+    });
+
+    calendar.addEventListener("mouseout", (e) => {
+      const rect = e.target.closest("rect.day");
+      if (rect) {
+        tooltip.style.display = "none";
+      }
+    });
+  }
+
+  function renderStats(data) {
+    const stats = document.getElementById("lc-stats");
+    if (!stats) return;
+
+    stats.innerHTML = `
+      <span class="text-gray-400">🔥 <span class="text-orange-400 font-semibold">${data.streak}</span> day streak</span>
+      <span class="text-gray-400">📅 <span class="text-green-400 font-semibold">${data.totalActiveDays}</span> active days</span>
+      <span class="text-gray-400">📆 active since <span class="text-cyan-400 font-semibold">${Math.min(...data.activeYears)}</span></span>
+    `;
+  }
+
+  async function init() {
+    const data = await fetchCalendar();
+    const calendarEl = document.getElementById("lc-calendar");
+
+    if (!data || !data.submissionCalendar) {
+      if (calendarEl) {
+        calendarEl.innerHTML = `<div class="text-xs text-red-400 py-4">failed to load leetcode data. try refreshing.</div>`;
+      }
+      return;
+    }
+
+    const submissionMap = JSON.parse(data.submissionCalendar);
+    const normalizedMap = normalizeSubmissionMap(submissionMap);
+    const grid = buildCalendarGrid(normalizedMap);
+
+    if (calendarEl) {
+      calendarEl.innerHTML = renderCalendar(grid);
+    }
+
+    renderStats(data);
+    setupTooltip();
+  }
+
+  // Run on DOM ready
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+</script>

@@ -2,6 +2,7 @@
 import { getCollection } from "astro:content";
 import PostPreview from "../components/PostPreview.astro";
 import SocialMediaIcons from "../components/SocialMediaIcons.astro";
+import LeetCodeCalendar from "../components/LeetCodeCalendar.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { sortMDByDate } from "../utils";
 
@@ -260,6 +261,8 @@ When it doesn’t, I’m flying down the highway on my motorcycle.
         </div>
       </div>
     </section>
+
+    <LeetCodeCalendar />
 
     <section id="blog" class="mt-8">
       <div class="font-mono text-sm text-gray-300">
