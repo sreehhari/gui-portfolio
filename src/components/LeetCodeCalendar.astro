@@ -286,17 +286,27 @@ const LEETCODE_USERNAME = "sreehari9300";
     `;
   }
 
-  async function init() {
-    const data = await fetchCalendar();
+  const CACHE_KEY = `lc-calendar-${LEETCODE_USERNAME}`;
+
+  function getCachedData() {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch { return null; }
+  }
+
+  function setCachedData(data) {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        data,
+        cachedAt: Date.now(),
+      }));
+    } catch { /* storage full or unavailable */ }
+  }
+
+  function renderData(data) {
     const calendarEl = document.getElementById("lc-calendar");
-
-    if (!data || !data.submissionCalendar) {
-      if (calendarEl) {
-        calendarEl.innerHTML = `<div class="text-xs text-red-400 py-4">failed to load leetcode data. try refreshing.</div>`;
-      }
-      return;
-    }
-
     const submissionMap = JSON.parse(data.submissionCalendar);
     const normalizedMap = normalizeSubmissionMap(submissionMap);
     const grid = buildCalendarGrid(normalizedMap);
@@ -304,9 +314,32 @@ const LEETCODE_USERNAME = "sreehari9300";
     if (calendarEl) {
       calendarEl.innerHTML = renderCalendar(grid);
     }
-
     renderStats(data);
     setupTooltip();
+  }
+
+  async function init() {
+    const calendarEl = document.getElementById("lc-calendar");
+
+    // 1. Show cached data instantly
+    const cached = getCachedData();
+    if (cached && cached.data && cached.data.submissionCalendar) {
+      renderData(cached.data);
+    }
+
+    // 2. Fetch fresh data in background
+    const freshData = await fetchCalendar();
+
+    if (freshData && freshData.submissionCalendar) {
+      renderData(freshData);
+      setCachedData(freshData);
+    } else if (!cached) {
+      // No cache AND API failed — show error
+      if (calendarEl) {
+        calendarEl.innerHTML = `<div class="text-xs text-red-400 py-4">failed to load leetcode data. try refreshing.</div>`;
+      }
+    }
+    // else: API failed but cache exists — keep showing cached version (already rendered)
   }
 
   // Run on DOM ready
@@ -316,3 +349,4 @@ const LEETCODE_USERNAME = "sreehari9300";
     init();
   }
 </script>
+
