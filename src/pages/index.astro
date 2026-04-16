@@ -6,6 +6,8 @@ import LeetCodeCalendar from "../components/LeetCodeCalendar.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { sortMDByDate } from "../utils";
 
+// age calculation
+
 const MAX_POSTS = 10;
 const allPosts = await getCollection("blog");
 const allPostsByDate = sortMDByDate(allPosts).slice(0, MAX_POSTS);
@@ -98,7 +100,7 @@ const projects: Array<{
             <!-- Personal paragraph -->
             <div class="bg-gray-500/10 rounded-lg p-3 mb-4">
               <p class="text-gray-200 leading-relaxed">
-You've entered my domain. I build, break, and tinker—mostly with Linux distros and backend systems built to last.
+You've entered my domain. I build, break, and tinker mostly with Linux distros and backend systems built to last.
 When boredom strikes, I spiral into the JavaScript framework rabbit hole.
 When it doesn’t, I’m flying down the highway on my motorcycle.
               </p>
@@ -109,6 +111,11 @@ When it doesn’t, I’m flying down the highway on my motorcycle.
             <div class="flex">
               <span class="text-gray-400 w-36 shrink-0">Location</span>
               <span class="text-white">Cochin, Kerala 🌍</span>
+            </div>
+
+            <div class="flex">
+              <span class="text-gray-400 w-36 shrink-0">Age</span>
+              <span class="text-white font-mono" id="live-age">...</span>
             </div>
 
             <div class="flex">
@@ -279,7 +286,21 @@ When it doesn’t, I’m flying down the highway on my motorcycle.
           timeElement.textContent = new Date().toLocaleTimeString();
         }
       }
-      setInterval(updateTime,1000);
+      setInterval(updateTime, 1000);
+
+      const BIRTH_DATE = new Date('2003-09-04T00:00:00');
+      const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000;
+
+      function updateAge() {
+        const ageEl = document.getElementById('live-age');
+        if (ageEl) {
+          const age = (Date.now() - BIRTH_DATE.getTime()) / MS_PER_YEAR;
+          ageEl.textContent = age.toFixed(9);
+        }
+      }
+
+      updateAge();
+      setInterval(updateAge, 50);
     </script>
   </main>
 </BaseLayout>
